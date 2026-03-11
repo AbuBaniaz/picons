@@ -265,7 +265,7 @@ grep -v -e '^#' -e '^$' $backgroundsconf | while read lines ; do
 
     mv $temp/package/picon $temp/package/$packagename
 
-    tar --dereference --owner=root --group=root -cf - --exclude=logos --directory=$temp/package $packagename | $compressor 2>> $logfile > $binaries/$packagename.hardlink.tar.$ext
+    tar --dereference --owner=root --group=root -cf - --exclude=logos --exclude='*%*' --directory=$temp/package $packagename | $compressor 2>> $logfile > $binaries/$packagename.hardlink.tar.$ext
     tar --owner=root --group=root -cf - --directory=$temp/package $packagename | $compressor 2>> $logfile > $binaries/$packagename.symlink.tar.$ext
 
     find $binaries -exec touch -t $timestamp {} \;

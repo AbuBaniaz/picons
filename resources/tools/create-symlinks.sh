@@ -39,30 +39,44 @@ fi
 ## Create symlinks for UTF8SNP using servicelist ##
 ##############################################################
 if [[ $style = "utf8snp" ]]; then
-    cat $location/build-output/servicelist-*-$style.txt | sed 's/\r//' | tr -d [=*=] | while read line ; do
-        IFS="|"
-        line_data=($line)
-        serviceref=$(echo "${line_data[0]}" | tr -d [:blank:])
-        link_srp=$(echo "${line_data[2]}" | tr -d [:blank:])
+    for servicelist in $location/build-output/servicelist-*-$style.txt ; do
+        # TVHeadend uses %U (UTF-8 URL-encoded) picon filenames, so we need extra URL-encoded symlinks
+        [[ $servicelist == *"tvheadend"* ]] && is_tvheadend=true || is_tvheadend=false
 
-        IFS="="
-        link_srp=($link_srp)
-        logo_srp=${link_srp[1]}
+        while read line ; do
+            IFS="|"
+            line_data=($line)
+            serviceref=$(echo "${line_data[0]}" | tr -d [:blank:])
+            link_srp=$(echo "${line_data[2]}" | tr -d [:blank:])
 
-        # for utf8snp we split on last occurance of = because the channel name may contain =, and that is valid
-        # column 4 is read without stripping blanks to preserve spaces in utf8snpname
-        link_utf8snp=$(echo "${line_data[3]}" | sed 's/^[[:blank:]]*//' | sed 's/[[:blank:]]*$//')
-        split_char="="
-        logo_utf8snp="${link_utf8snp##*${split_char}}"
-        utf8snpname=`echo ${link_utf8snp%${split_char}*} | sed "s/'/'\"'\"'/g"`  # escape single quotes
+            IFS="="
+            link_srp=($link_srp)
+            logo_srp=${link_srp[1]}
 
-        if [[ ! $logo_srp = "--------" ]]; then
-            echo "ln -s -f 'logos/$logo_srp.png' '$temp/package/picon/$serviceref.png'" >> $temp/create-symlinks.sh
-        fi
+            # for utf8snp we split on last occurance of = because the channel name may contain =, and that is valid
+            # column 4 is read without stripping blanks to preserve spaces in utf8snpname
+            link_utf8snp=$(echo "${line_data[3]}" | sed 's/^[[:blank:]]*//' | sed 's/[[:blank:]]*$//')
+            split_char="="
+            logo_utf8snp="${link_utf8snp##*${split_char}}"
+            utf8snpname_raw=${link_utf8snp%${split_char}*}  # raw name for URL encoding
+            utf8snpname=`echo "$utf8snpname_raw" | sed "s/'/'\"'\"'/g"`  # escape single quotes for shell output
 
-        if [[ ! $logo_utf8snp = "--------" ]]; then
-            echo "ln -s -f 'logos/$logo_utf8snp.png' '$temp/package/picon/$utf8snpname.png'" >> $temp/create-symlinks.sh
-        fi
+            if [[ ! $logo_srp = "--------" ]]; then
+                echo "ln -s -f 'logos/$logo_srp.png' '$temp/package/picon/$serviceref.png'" >> $temp/create-symlinks.sh
+            fi
+
+            if [[ ! $logo_utf8snp = "--------" ]]; then
+                echo "ln -s -f 'logos/$logo_utf8snp.png' '$temp/package/picon/$utf8snpname.png'" >> $temp/create-symlinks.sh
+                # TVHeadend uses %U (UTF-8 URL-encoded) picon filenames, create an additional symlink to match
+                if [[ $is_tvheadend = true ]]; then
+                    urlencoded_name=$(python3 -c "import urllib.parse,unicodedata,sys; print(urllib.parse.quote(unicodedata.normalize('NFC', sys.argv[1]), safe=''))" "$utf8snpname_raw")
+                    if [[ ! "$urlencoded_name" = "$utf8snpname_raw" ]]; then
+                        urlencoded_name_escaped=$(echo "$urlencoded_name" | sed "s/'/'\"'\"'/g")
+                        echo "ln -s -f 'logos/$logo_utf8snp.png' '$temp/package/picon/$urlencoded_name_escaped.png'" >> $temp/create-symlinks.sh
+                    fi
+                fi
+            fi
+        done < <(sed 's/\r//' "$servicelist" | tr -d '*')
     done
 fi
 
